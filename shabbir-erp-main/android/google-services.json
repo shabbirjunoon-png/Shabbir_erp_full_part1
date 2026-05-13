@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "705676661033",
+    "project_id": "shabbirserp",
+    "storage_bucket": "shabbirserp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:705676661033:android:fa1c849f95305c0932a738",
+        "android_client_info": {
+          "package_name": "com.shabbir.erp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "705676661033-kmj6dvesdpnhm8vojr338f5mq2f48cei.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAy9PBKHe2txPElQNV3Q-M7Mi0uVRIJBDc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "705676661033-kmj6dvesdpnhm8vojr338f5mq2f48cei.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

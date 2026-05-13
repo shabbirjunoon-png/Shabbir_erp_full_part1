@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "533290517471",
+    "project_id": "shabbirer-eca8d",
+    "storage_bucket": "shabbirer-eca8d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:533290517471:android:9839d8b3dab8204348ba6a",
+        "android_client_info": {
+          "package_name": "com.shabbir.erp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBWZUec_0vrLOsIfPEIU68hQ7RwqTs1iz0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

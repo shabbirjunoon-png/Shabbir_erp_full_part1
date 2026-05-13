@@ -1,0 +1,1 @@
+This directory keeps the assets section valid.

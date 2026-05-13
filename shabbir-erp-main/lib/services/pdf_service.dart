@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../models/party.dart';
@@ -36,10 +37,16 @@ class PdfService {
       else if (tx.type == 'Payment') closingBal += tx.total;
     }
 
+    pw.ImageProvider? logoImage;
+    try {
+      final data = await rootBundle.load('assets/logo.png');
+      logoImage = pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {}
+
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(32),
-      header: (_) => _buildHeader(party, startDate, endDate),
+      header: (_) => _buildHeader(party, startDate, endDate, logoImage),
       footer: (_) => _buildFooter(),
       build: (_) => [
         pw.SizedBox(height: 16),
@@ -104,6 +111,12 @@ class PdfService {
     final doc = pw.Document();
     final now = DateTime.now();
 
+    pw.ImageProvider? logoImage;
+    try {
+      final data = await rootBundle.load('assets/logo.png');
+      logoImage = pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {}
+
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(32),
@@ -117,20 +130,21 @@ class PdfService {
             pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Container(
-                    width: 32,
-                    height: 32,
-                    decoration: pw.BoxDecoration(
-                        color: _primary,
-                        borderRadius: const pw.BorderRadius.all(
-                            pw.Radius.circular(8))),
-                    child: pw.Center(
-                        child: pw.Text('S',
-                            style: pw.TextStyle(
-                                fontWeight: pw.FontWeight.bold,
-                                fontSize: 18,
-                                color: _accent))),
-                  ),
+                  logoImage != null
+                      ? pw.Image(logoImage, width: 40, height: 40)
+                      : pw.Container(
+                          width: 40,
+                          height: 40,
+                          decoration: pw.BoxDecoration(
+                              color: _primary,
+                              borderRadius: const pw.BorderRadius.all(
+                                  pw.Radius.circular(8))),
+                          child: pw.Center(
+                              child: pw.Text('S',
+                                  style: pw.TextStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 18,
+                                      color: _accent)))),
                   pw.SizedBox(height: 6),
                   pw.Text('Trial Balance',
                       style: pw.TextStyle(
@@ -235,7 +249,7 @@ class PdfService {
   }
 
   static pw.Widget _buildHeader(
-      Party party, DateTime start, DateTime end) {
+      Party party, DateTime start, DateTime end, pw.ImageProvider? logo) {
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 12),
       decoration: pw.BoxDecoration(
@@ -246,20 +260,21 @@ class PdfService {
             pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Container(
-                    width: 32,
-                    height: 32,
-                    decoration: pw.BoxDecoration(
-                        color: _primary,
-                        borderRadius: const pw.BorderRadius.all(
-                            pw.Radius.circular(8))),
-                    child: pw.Center(
-                        child: pw.Text('S',
-                            style: pw.TextStyle(
-                                fontWeight: pw.FontWeight.bold,
-                                fontSize: 18,
-                                color: _accent))),
-                  ),
+                  logo != null
+                      ? pw.Image(logo, width: 40, height: 40)
+                      : pw.Container(
+                          width: 40,
+                          height: 40,
+                          decoration: pw.BoxDecoration(
+                              color: _primary,
+                              borderRadius: const pw.BorderRadius.all(
+                                  pw.Radius.circular(8))),
+                          child: pw.Center(
+                              child: pw.Text('S',
+                                  style: pw.TextStyle(
+                                      fontWeight: pw.FontWeight.bold,
+                                      fontSize: 18,
+                                      color: _accent)))),
                   pw.SizedBox(height: 6),
                   pw.Text('Shabbir Ledger',
                       style: pw.TextStyle(

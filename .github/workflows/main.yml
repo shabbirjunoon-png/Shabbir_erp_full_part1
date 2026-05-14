@@ -17,8 +17,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Secrets se Firebase ki files banana (Path fix kiya gaya hai)
       - name: Create Firebase Config Files
         run: |
+          mkdir -p android/app
+          mkdir -p lib
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
           echo '${{ secrets.FIREBASE_OPTIONS_DART }}' > lib/firebase_options.dart
 
@@ -28,6 +31,16 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Setup Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -35,20 +48,36 @@ jobs:
           channel: 'stable'
           cache: true
 
+      # Firebase Connectivity ke liye SHA keys print karna
       - name: Print SHA-1 fingerprint
         run: |
-          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android || (mkdir -p ~/.android && keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" && keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android)
+          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android || \
+          (mkdir -p ~/.android && keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android \
+          -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+          -dname "CN=Android Debug,O=Android,C=US" && \
+          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android)
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build APK (release)
+        # Memory limit barhayi gayi hai taake heap space error na aaye
         run: flutter build apk --release
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m"
 
-      - name: Upload APK
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: shabbir-erp-apk
           path: shabbir-erp-main/build/app/outputs/flutter-apk/*.apk
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          files: shabbir-erp-main/build/app/outputs/flutter-apk/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

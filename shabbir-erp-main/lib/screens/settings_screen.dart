@@ -288,8 +288,6 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
             ),
             const SizedBox(height: 24),
 
-            const SizedBox(height: 24),
-
             // ── App ──
             _SectionLabel(locale.t3('App', 'App', 'ایپ')),
             _Tile(icon: Icons.info_outline, title: locale.t3('About', 'About', 'بارے میں'), subtitle: 'Shabbir ERP v1.0', onTap: () => _showAboutDialog(context)),

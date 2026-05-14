@@ -29,6 +29,7 @@ jobs:
         with:
           flutter-version: '3.32.0'
           channel: 'stable'
+          cache: true
 
       - name: Print SHA-1 fingerprint (for Google Sign-In)
         run: |
@@ -84,6 +85,7 @@ jobs:
         with:
           flutter-version: '3.32.0'
           channel: 'stable'
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
@@ -114,6 +116,7 @@ jobs:
         with:
           flutter-version: '3.32.0'
           channel: 'stable'
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
@@ -124,10 +127,17 @@ jobs:
       - name: Create IPA archive
         run: |
           mkdir -p build/ios/ipa
-          cd build/ios/Release-iphoneos
+          APP_PATH=$(find build/ios -name "Runner.app" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app not found"
+            exit 1
+          fi
+          IPA_DIR=$(dirname "$APP_PATH")
+          cd "$IPA_DIR"
           mkdir -p Payload
           cp -r Runner.app Payload/
-          zip -r ../ipa/shabbir-erp.ipa Payload/
+          zip -r ipa/shabbir-erp.ipa Payload/ 2>/dev/null || \
+            zip -r "$(pwd)/../ipa/shabbir-erp.ipa" Payload/
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4

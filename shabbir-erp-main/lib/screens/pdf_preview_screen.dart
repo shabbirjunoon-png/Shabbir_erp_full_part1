@@ -26,7 +26,7 @@ class PdfPreviewScreen extends StatefulWidget {
 }
 
 class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
-  bool _showPreview = false;
+  bool _showPreview = true;
 
   void _download(BuildContext context) {
     try {

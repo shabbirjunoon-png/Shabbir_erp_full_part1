@@ -52,29 +52,36 @@ class SettingsScreenState extends State<SettingsScreen> {
 
   // ── Name Editing ───────────────────────────────────────────────────────────
   Future<void> _editName() async {
+    final locale = context.read<LocaleService>();
     final ctrl = TextEditingController(text: _offlineName);
     final name = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Naam Tabdeel Karo', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        title: Text(
+          locale.t3('Edit Name', 'Naam Tabdeel Karo', 'نام تبدیل کریں'),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+        ),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
           style: GoogleFonts.inter(fontSize: 15),
           decoration: InputDecoration(
-            hintText: 'Apna naam likho',
+            hintText: locale.t3('Enter your name', 'Apna naam likho', 'اپنا نام لکھیں'),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel', style: GoogleFonts.inter())),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(locale.t3('Cancel', 'Cancel', 'منسوخ'), style: GoogleFonts.inter()),
+          ),
           ElevatedButton(
             onPressed: () { final n = ctrl.text.trim(); if (n.isNotEmpty) Navigator.of(context).pop(n); },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            child: Text('Save', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            child: Text(locale.t3('Save', 'Save', 'محفوظ کریں'), style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -83,93 +90,134 @@ class SettingsScreenState extends State<SettingsScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_name', name);
       if (mounted) setState(() => _offlineName = name);
-      _snack('Naam update ho gaya!');
+      _snack(locale.t3('Name updated!', 'Naam update ho gaya!', 'نام اپ ڈیٹ ہو گیا!'));
     }
   }
 
   // ── Pattern Lock ───────────────────────────────────────────────────────────
   Future<void> _togglePattern() async {
+    final locale = context.read<LocaleService>();
     if (_patternEnabled) {
       final verified = await Navigator.of(context).push<bool>(MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => PatternLockScreen(mode: PatternLockMode.verify, onSuccess: () => Navigator.of(context).pop(true), onCancel: () => Navigator.of(context).pop(false)),
       ));
-      if (verified == true) { await SecurityService.instance.disablePattern(); if (mounted) setState(() => _patternEnabled = false); _snack('Pattern lock band ho gaya'); }
+      if (verified == true) {
+        await SecurityService.instance.disablePattern();
+        if (mounted) setState(() => _patternEnabled = false);
+        _snack(locale.t3('Pattern lock disabled', 'Pattern lock band ho gaya', 'پیٹرن لاک بند ہو گیا'));
+      }
     } else {
       final set = await Navigator.of(context).push<bool>(MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => PatternLockScreen(mode: PatternLockMode.set, onSuccess: () => Navigator.of(context).pop(true), onCancel: () => Navigator.of(context).pop(false)),
       ));
-      if (set == true) { if (mounted) setState(() => _patternEnabled = true); _snack('Pattern lock laga diya'); }
+      if (set == true) {
+        if (mounted) setState(() => _patternEnabled = true);
+        _snack(locale.t3('Pattern lock enabled', 'Pattern lock laga diya', 'پیٹرن لاک لگا دیا'));
+      }
     }
   }
 
   Future<void> _changePattern() async {
+    final locale = context.read<LocaleService>();
     final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(
       fullscreenDialog: true,
       builder: (_) => PatternLockScreen(mode: PatternLockMode.change, onSuccess: () => Navigator.of(context).pop(true), onCancel: () => Navigator.of(context).pop(false)),
     ));
-    if (changed == true) _snack('Pattern tabdeel ho gaya');
+    if (changed == true) _snack(locale.t3('Pattern changed', 'Pattern tabdeel ho gaya', 'پیٹرن تبدیل ہو گیا'));
   }
 
   // ── Local Backup ───────────────────────────────────────────────────────────
   Future<void> _backupLocal() async {
+    final locale = context.read<LocaleService>();
     setState(() => _loadingBackupLocal = true);
     try {
       await BackupService.instance.backupToLocalStorage();
       final newDate = await BackupService.instance.lastBackupDate();
       if (mounted) setState(() { _lastBackupDate = newDate; _backupNeeded = false; });
-      _snack('Backup tayyar — save karo ya share karo');
+      _snack(locale.t3('Backup ready — save or share it', 'Backup tayyar — save karo ya share karo', 'بیک اپ تیار — محفوظ کریں یا شیئر کریں'));
     } catch (e) {
-      _snack('Backup nahi hua: $e', error: true);
+      _snack(locale.t3('Backup failed: $e', 'Backup nahi hua: $e', 'بیک اپ ناکام: $e'), error: true);
     } finally {
       if (mounted) setState(() => _loadingBackupLocal = false);
     }
   }
 
   Future<void> _restoreLocal() async {
-    final mode = await _showRestoreModeDialog();
+    final locale = context.read<LocaleService>();
+    final mode = await _showRestoreModeDialog(locale);
     if (mode == null) return;
     setState(() => _loadingRestoreLocal = true);
     try {
       final success = await BackupService.instance.restoreFromFiles(mode: mode);
-      if (!success) { _snack('Koi file select nahi ki'); return; }
+      if (!success) {
+        _snack(locale.t3('No file selected', 'Koi file select nahi ki', 'کوئی فائل منتخب نہیں کی'));
+        return;
+      }
       if (mounted) await context.read<ERPProvider>().reload();
-      _snack(mode == RestoreMode.merge ? 'Data merge ho gaya!' : 'Data replace ho gaya!');
+      _snack(mode == RestoreMode.merge
+          ? locale.t3('Data merged!', 'Data merge ho gaya!', 'ڈیٹا ضم ہو گیا!')
+          : locale.t3('Data replaced!', 'Data replace ho gaya!', 'ڈیٹا تبدیل ہو گیا!'));
     } catch (e) {
-      _snack('Restore nahi hua: ${e.toString().replaceAll("Exception:", "").trim()}', error: true);
+      _snack(locale.t3(
+        'Restore failed: ${e.toString().replaceAll("Exception:", "").trim()}',
+        'Restore nahi hua: ${e.toString().replaceAll("Exception:", "").trim()}',
+        'ریسٹور ناکام: ${e.toString().replaceAll("Exception:", "").trim()}',
+      ), error: true);
     } finally {
       if (mounted) setState(() => _loadingRestoreLocal = false);
     }
   }
 
-  Future<String?> _showRestoreModeDialog() async {
+  Future<String?> _showRestoreModeDialog(LocaleService locale) async {
     return showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Restore Mode Chunain', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18)),
+        title: Text(
+          locale.t3('Choose Restore Mode', 'Restore Mode Chunain', 'ریسٹور موڈ منتخب کریں'),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 18),
+        ),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Aap backup file restore karna chahte hain. Pehle batao ke data kaise restore ho:', style: GoogleFonts.inter(fontSize: 13, color: AppColors.mutedForeground, height: 1.5)),
+          Text(
+            locale.t3(
+              'How would you like to restore your backup?',
+              'Aap backup file restore karna chahte hain. Pehle batao ke data kaise restore ho:',
+              'آپ بیک اپ ڈیٹا کیسے ریسٹور کرنا چاہتے ہیں؟',
+            ),
+            style: GoogleFonts.inter(fontSize: 13, color: AppColors.mutedForeground, height: 1.5),
+          ),
           const SizedBox(height: 16),
           _RestoreOptionCard(
             icon: Icons.swap_horiz_rounded,
             color: AppColors.destructive,
-            title: 'Replace (Tabdeel Karo)',
-            subtitle: 'Purana data delete hoga, sirf backup ka data rahega',
+            title: locale.t3('Replace', 'Replace (Tabdeel Karo)', 'تبدیل کریں'),
+            subtitle: locale.t3(
+              'Delete existing data, keep only backup data',
+              'Purana data delete hoga, sirf backup ka data rahega',
+              'پرانا ڈیٹا حذف ہو گا، صرف بیک اپ کا ڈیٹا رہے گا',
+            ),
             onTap: () => Navigator.of(context).pop(RestoreMode.replace),
           ),
           const SizedBox(height: 10),
           _RestoreOptionCard(
             icon: Icons.merge_type_rounded,
             color: AppColors.success,
-            title: 'Merge (Milaao)',
-            subtitle: 'Purana data rahega, backup ka naya data uske saath jud jayega',
+            title: locale.t3('Merge', 'Merge (Milaao)', 'ضم کریں'),
+            subtitle: locale.t3(
+              'Keep existing data and add backup data alongside it',
+              'Purana data rahega, backup ka naya data uske saath jud jayega',
+              'پرانا ڈیٹا رہے گا، بیک اپ کا نیا ڈیٹا اس کے ساتھ شامل ہو گا',
+            ),
             onTap: () => Navigator.of(context).pop(RestoreMode.merge),
           ),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel', style: GoogleFonts.inter())),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(locale.t3('Cancel', 'Cancel', 'منسوخ'), style: GoogleFonts.inter()),
+          ),
         ],
       ),
     );
@@ -177,7 +225,16 @@ class SettingsScreenState extends State<SettingsScreen> {
 
   // ── Logout ─────────────────────────────────────────────────────────────────
   Future<void> _logout() async {
-    final confirm = await _confirmDialog('Sign Out?', 'Aap login screen par wapas jayenge. Data safe rahega.');
+    final locale = context.read<LocaleService>();
+    final confirm = await _confirmDialog(
+      locale.t3('Sign Out?', 'Sign Out?', 'سائن آؤٹ؟'),
+      locale.t3(
+        'You will return to the login screen. Your data will remain safe.',
+        'Aap login screen par wapas jayenge. Data safe rahega.',
+        'آپ لاگ ان اسکرین پر واپس جائیں گے۔ ڈیٹا محفوظ رہے گا۔',
+      ),
+      locale,
+    );
     if (!confirm) return;
     setState(() => _loadingLogout = true);
     final prefs = await SharedPreferences.getInstance();
@@ -190,7 +247,7 @@ class SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  Future<bool> _confirmDialog(String title, String body) async {
+  Future<bool> _confirmDialog(String title, String body, LocaleService locale) async {
     return await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -198,11 +255,14 @@ class SettingsScreenState extends State<SettingsScreen> {
         title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
         content: Text(body, style: GoogleFonts.inter(fontSize: 14, height: 1.5)),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel', style: GoogleFonts.inter())),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(locale.t3('Cancel', 'Cancel', 'منسوخ'), style: GoogleFonts.inter()),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.destructive, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            child: Text('Haan', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            child: Text(locale.t3('Yes', 'Haan', 'ہاں'), style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -228,20 +288,25 @@ class SettingsScreenState extends State<SettingsScreen> {
     ));
   }
 
-  String _formatBackupDate(DateTime? d) {
-    if (d == null) return 'Kabhi nahi';
+  String _formatBackupDate(DateTime? d, LocaleService locale) {
+    if (d == null) return locale.t3('Never', 'Kabhi nahi', 'کبھی نہیں');
     final now = DateTime.now();
     final diff = now.difference(d);
-    if (diff.inDays == 0) return 'Aaj';
-    if (diff.inDays == 1) return '1 din pehle';
-    return '${diff.inDays} din pehle';
+    if (diff.inDays == 0) return locale.t3('Today', 'Aaj', 'آج');
+    if (diff.inDays == 1) return locale.t3('1 day ago', '1 din pehle', '1 دن پہلے');
+    return locale.t3('${diff.inDays} days ago', '${diff.inDays} din pehle', '${diff.inDays} دن پہلے');
+  }
+
+  String _currentLangLabel(LocaleService locale) {
+    if (locale.isEnglish) return locale.t3('Current: English', 'Current: English', 'ابھی: انگریزی');
+    if (locale.isUrdu) return locale.t3('Current: Urdu', 'Current: Urdu', 'ابھی: اردو');
+    return locale.t3('Current: Roman Urdu', 'Current: Roman Urdu', 'ابھی: رومن اردو');
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<LocaleService>();
-    final isUrdu = locale.isUrdu;
 
     final firebaseUser = FirebaseAuthService.instance.currentUser;
     final isGoogleUser = firebaseUser != null;
@@ -279,15 +344,25 @@ class SettingsScreenState extends State<SettingsScreen> {
                   const Icon(Icons.warning_amber_rounded, color: Color(0xFFEA580C), size: 20),
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(locale.t3('Backup is required!', 'Backup lena zaruri hai!', 'بیک اپ لینا ضروری ہے!'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF9A3412))),
-                    Text(locale.t3('3+ days since last backup. Tap "Device Backup".', '3+ din se backup nahi liya. "Device pe Backup" tap karo.', '3+ دن سے بیک اپ نہیں لیا'), style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFC2410C), height: 1.4)),
+                    Text(
+                      locale.t3('Backup required!', 'Backup lena zaruri hai!', 'بیک اپ لینا ضروری ہے!'),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF9A3412)),
+                    ),
+                    Text(
+                      locale.t3(
+                        '3+ days since last backup. Tap "Backup to Device".',
+                        '3+ din se backup nahi liya. "Device pe Backup" tap karo.',
+                        '3+ دن سے بیک اپ نہیں لیا۔ "ڈیوائس پر بیک اپ" ٹیپ کریں۔',
+                      ),
+                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFC2410C), height: 1.4),
+                    ),
                   ])),
                 ]),
               ),
             ],
 
             // ── Language Toggle ──
-            _SectionLabel(locale.t3('Language', 'Zaban', 'زبان')),
+            _SectionLabel(locale.t3('Language', 'Language', 'زبان')),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border), boxShadow: [AppColors.cardShadow]),
@@ -300,8 +375,8 @@ class SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(locale.t3('App Language', 'App ki Zaban', 'ایپ کی زبان'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.foreground)),
-                    Text(locale.t3('Current: English', 'Current: Roman Urdu', 'ابھی: اردو'), style: GoogleFonts.inter(fontSize: 12, color: AppColors.mutedForeground)),
+                    Text(locale.t3('App Language', 'App Language', 'ایپ کی زبان'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.foreground)),
+                    Text(_currentLangLabel(locale), style: GoogleFonts.inter(fontSize: 12, color: AppColors.mutedForeground)),
                   ])),
                 ]),
                 const SizedBox(height: 14),
@@ -317,7 +392,7 @@ class SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
 
             // ── Account Card ──
-            _SectionLabel(isUrdu ? 'اکاؤنٹ' : 'Account'),
+            _SectionLabel(locale.t3('Account', 'Account', 'اکاؤنٹ')),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border), boxShadow: [AppColors.cardShadow]),
@@ -378,7 +453,7 @@ class SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
 
             // ── Local Backup ──
-            _SectionLabel(locale.t3('Local Backup (Device)', 'Local Backup (Device)', 'مقامی بیک اپ')),
+            _SectionLabel(locale.t3('Local Backup (Device)', 'Local Backup (Device)', 'مقامی بیک اپ (ڈیوائس)')),
             Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -391,14 +466,14 @@ class SettingsScreenState extends State<SettingsScreen> {
                 const Icon(Icons.history, size: 15, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Expanded(child: Text(
-                  '${locale.t3("Last backup", "Aakhri backup", "آخری بیک اپ")}: ${_formatBackupDate(_lastBackupDate)}',
+                  '${locale.t3("Last backup", "Last backup", "آخری بیک اپ")}: ${_formatBackupDate(_lastBackupDate, locale)}',
                   style: GoogleFonts.inter(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500),
                 )),
                 if (_backupNeeded)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: const Color(0xFFEA580C), borderRadius: BorderRadius.circular(6)),
-                    child: Text(locale.t3('Required!', 'Zaruri!', 'ضروری'), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+                    child: Text(locale.t3('Required!', 'Zaruri!', 'ضروری!'), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
                   ),
               ]),
             ),

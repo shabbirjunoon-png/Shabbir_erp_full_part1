@@ -253,6 +253,213 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
     return '${diff.inDays} din pehle';
   }
 
+  Future<void> _logout() async {
+    final confirm = await _confirmDialog('Sign Out?', 'Aap login screen par wapas jayenge. Data safe rahega.');
+    if (!confirm) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('offline_logged_in');
+    try { await SupabaseService.instance.signOut(); } catch (_) {}
+    if (mounted) widget.onLogout();
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  Future<bool> _confirmDialog(String title, String body) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        content: Text(body, style: GoogleFonts.inter(fontSize: 14, height: 1.5)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel', style: GoogleFonts.inter())),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.destructive, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            child: Text('Haan', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  void _snack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 13)),
+      backgroundColor: error ? AppColors.destructive : AppColors.success,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog(context: context, builder: (_) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: Text('About Shabbir ERP', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+      content: Text('Powered by Shabbir Ahmed.\n\nThis app is totally AI-generated.', style: GoogleFonts.inter(fontSize: 14, height: 1.5)),
+      actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Close', style: GoogleFonts.inter()))],
+    ));
+  }
+
+  String _formatBackupDate(DateTime? d) {
+    if (d == null) return 'Kabhi nahi';
+    final now = DateTime.now();
+    final diff = now.difference(d);
+    if (diff.inDays == 0) return 'Aaj';
+    if (diff.inDays == 1) return '1 din pehle';
+    return '${diff.inDays} din pehle';
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    final locale = context.watch<LocaleService>();
+    final isUrdu = locale.isUrdu;
+
+    final initials = _offlineName.trim().isNotEmpty
+        ? _offlineName.trim().split(' ').map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').take(2).join()
+        : 'U';
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Column(children: [
+        AppHeader(
+          title: locale.t3('Settings', 'Settings', 'ترتیبات'),
+          subtitle: locale.t3('Account, security & data', 'Account, security & data', 'اکاؤنٹ، سیکیورٹی اور ڈیٹا'),
+        ),
+        Expanded(child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 48),
+          children: [
+            // ── Backup Alert ──
+            if (_backupNeeded) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFEA580C), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Text(locale.t3('Backup is required!', 'Backup lena zaruri hai!', 'بیک اپ لینا ضروری ہے!'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF9A3412))),
+                    Text(locale.t3('3+ days since last backup. Tap "Device Backup".', '3+ din se backup nahi liya. "Device pe Backup" tap karo.', '3+ دن سے بیک اپ نہیں لیا'), style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFC2410C), height: 1.4)),
+                  ])),
+                ]),
+              ),
+            ],
+
+            // ── Language Toggle ──
+            _SectionLabel(locale.t3('Language', 'Zaban', 'زبان')),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border), boxShadow: [AppColors.cardShadow]),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(12)),
+                    child: const Center(child: Text('🌐', style: TextStyle(fontSize: 22))),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(locale.t3('App Language', 'App ki Zaban', 'ایپ کی زبان'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.foreground)),
+                    Text(locale.t3('Current: English', 'Current: Roman Urdu', 'ابھی: اردو'), style: GoogleFonts.inter(fontSize: 12, color: AppColors.mutedForeground)),
+                  ])),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  _LangChip(label: 'English', selected: locale.isEnglish, onTap: () => locale.setLang(AppLang.english)),
+                  const SizedBox(width: 8),
+                  _LangChip(label: 'Roman Urdu', selected: locale.isRomanUrdu, onTap: () => locale.setLang(AppLang.romanUrdu)),
+                  const SizedBox(width: 8),
+                  _LangChip(label: 'اردو', selected: locale.isUrdu, onTap: () => locale.setLang(AppLang.urdu)),
+                ]),
+              ]),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Account Card ──
+            _SectionLabel(isUrdu ? 'اکاؤنٹ' : 'Account'),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border), boxShadow: [AppColors.cardShadow]),
+              child: Row(children: [
+                Container(
+                  width: 54, height: 54,
+                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(15)),
+                  child: Center(child: Text(initials, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.accent))),
+                ),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_offlineName, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.foreground)),
+                  Text(locale.t3('Offline Mode — data only on this device', 'Offline Mode — data sirf is device par', 'آف لائن موڈ — ڈیٹا صرف اس ڈیوائس پر'), style: GoogleFonts.inter(fontWeight: FontWeight.w400, fontSize: 11.5, color: AppColors.mutedForeground, height: 1.4)),
+                ])),
+                GestureDetector(
+                  onTap: _editName,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(10)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(locale.t3('Edit', 'Edit', 'ترمیم'), style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.primary)),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Security ──
+            _SectionLabel(locale.t3('Security', 'Security', 'سیکیورٹی')),
+            _Tile(
+              icon: Icons.grid_view_outlined,
+              title: locale.t3('Pattern Lock', 'Pattern Lock', 'پیٹرن لاک'),
+              subtitle: _patternEnabled
+                  ? locale.t3('Enabled — tap to disable', 'Chalu hai — band karne ke liye tap karo', 'چالو ہے — بند کرنے کے لیے ٹیپ کریں')
+                  : locale.t3('Disabled — tap to enable', 'Band hai — chalane ke liye tap karo', 'بند ہے — چالو کرنے کے لیے ٹیپ کریں'),
+              trailing: Switch(value: _patternEnabled, onChanged: (_) => _togglePattern(), activeColor: AppColors.primary),
+            ),
+            if (_patternEnabled) _Tile(
+              icon: Icons.refresh_outlined,
+              title: locale.t3('Change Pattern', 'Pattern Tabdeel Karo', 'پیٹرن تبدیل کریں'),
+              subtitle: locale.t3('Set a new unlock pattern', 'Naya unlock pattern banao', 'نیا انلاک پیٹرن بنائیں'),
+              onTap: _changePattern,
+            ),
+            const SizedBox(height: 24),
+
+            // ── Local Backup ──
+            _SectionLabel(locale.t3('Local Backup (Device)', 'Local Backup (Device)', 'مقامی بیک اپ')),
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.secondary,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.tint.withOpacity(0.2)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.history, size: 15, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  '${locale.t3("Last backup", "Aakhri backup", "آخری بیک اپ")}: ${_formatBackupDate(_lastBackupDate)}',
+                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500),
+                )),
+                if (_backupNeeded)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: const Color(0xFFEA580C), borderRadius: BorderRadius.circular(6)),
+                    child: Text(locale.t3('Required!', 'Zaruri!', 'ضروری'), style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ),
+              ]),
+            ),
+            _Tile(icon: Icons.upload_outlined, title: locale.t3('Backup to Device', 'Device pe Backup', 'ڈیوائس پر بیک اپ'), subtitle: locale.t3('Download JSON file', 'JSON file download karo', 'JSON فائل ڈاؤن لوڈ کریں'), loading: _loadingBackupLocal, onTap: _backupLocal),
+            _Tile(icon: Icons.download_outlined, title: locale.t3('Restore from Device', 'Device se Restore', 'ڈیوائس سے ریسٹور'), subtitle: locale.t3('Import data from JSON file', 'JSON file se data wapas lao', 'JSON فائل سے ڈیٹا واپس لائیں'), loading: _loadingRestoreLocal, onTap: _restoreLocal),
+            const SizedBox(height: 24),
+
             // ── Supabase Cloud Sync ──
             _SectionLabel(locale.t3('Cloud Sync (Supabase)', 'Cloud Sync (Supabase)', 'کلاؤڈ سنک (Supabase)')),
             Container(

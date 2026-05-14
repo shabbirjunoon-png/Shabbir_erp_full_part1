@@ -20,17 +20,23 @@ import 'services/security_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (_) {}
 
-  await Future.wait([
-    LocaleService.instance.load(),
-    preloadLogoImage(),
-  ]);
+  try {
+    await Future.wait([
+      LocaleService.instance.load(),
+      preloadLogoImage(),
+    ]);
+  } catch (_) {}
 
   if (!kIsWeb) {
-    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    try {
+      await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    } catch (_) {}
   }
 
   runApp(const ShabbirERP());

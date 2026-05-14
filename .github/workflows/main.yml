@@ -24,6 +24,17 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      # Gradle caching add ki hai taake build fast ho aur memory kam consume ho
+      - name: Setup Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -31,26 +42,19 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Print SHA-1 fingerprint (for Google Sign-In)
-        run: |
-          keytool -list -v -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey -storepass android -keypass android || \
-          (mkdir -p ~/.android && keytool -genkey -v \
-            -keystore ~/.android/debug.keystore -storepass android \
-            -alias androiddebugkey -keypass android -keyalg RSA \
-            -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US" && \
-          keytool -list -v -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey -storepass android -keypass android)
-
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build APK (release)
+        # GRADLE_OPTS yahan set kiya hai heap memory fix karne ke liye
         run: flutter build apk --release
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m"
 
       - name: Build APK (split per ABI)
         run: flutter build apk --split-per-abi --release
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
@@ -67,80 +71,3 @@ jobs:
           files: shabbir-erp-main/build/app/outputs/flutter-apk/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-web:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    defaults:
-      run:
-        working-directory: shabbir-erp-main
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.32.0'
-          channel: 'stable'
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build Web
-        run: flutter build web --release
-
-      - name: Upload Web artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: shabbir-erp-web
-          path: shabbir-erp-main/build/web/
-
-  build-ios:
-    runs-on: macos-latest
-    permissions:
-      contents: write
-    defaults:
-      run:
-        working-directory: shabbir-erp-main
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.32.0'
-          channel: 'stable'
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build iOS (no codesign)
-        run: flutter build ios --release --no-codesign
-
-      - name: Create IPA archive
-        run: |
-          mkdir -p build/ios/ipa
-          APP_PATH=$(find build/ios -name "Runner.app" | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Runner.app not found"
-            exit 1
-          fi
-          IPA_DIR=$(dirname "$APP_PATH")
-          cd "$IPA_DIR"
-          mkdir -p Payload
-          cp -r Runner.app Payload/
-          zip -r ipa/shabbir-erp.ipa Payload/ 2>/dev/null || \
-            zip -r "$(pwd)/../ipa/shabbir-erp.ipa" Payload/
-
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: shabbir-erp-ios
-          path: shabbir-erp-main/build/ios/ipa/shabbir-erp.ipa

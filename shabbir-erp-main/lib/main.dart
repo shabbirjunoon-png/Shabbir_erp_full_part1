@@ -97,49 +97,60 @@ class _AppRootState extends State<AppRoot> {
   void initState() {
     super.initState();
     _checkAuth();
-    FirebaseAuthService.instance.authStateChanges.listen((user) {
-      if (!mounted) return;
-      if (user != null) {
-        _onLogin();
-      }
-    });
+    try {
+      FirebaseAuthService.instance.authStateChanges.listen((user) {
+        if (!mounted) return;
+        if (user != null) {
+          _onLogin();
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _checkAuth() async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final prefs = await SharedPreferences.getInstance();
 
-    if (FirebaseAuthService.instance.isLoggedIn) {
-      final patternEnabled = await SecurityService.instance.isPatternEnabled();
-      final hasPattern = await SecurityService.instance.hasPatternSet();
+      if (FirebaseAuthService.instance.isLoggedIn) {
+        final patternEnabled = await SecurityService.instance.isPatternEnabled();
+        final hasPattern = await SecurityService.instance.hasPatternSet();
+        if (mounted) {
+          setState(() {
+            _isLoggedIn = true;
+            _needsPattern = patternEnabled && hasPattern;
+            _loading = false;
+          });
+        }
+        return;
+      }
+
+      final offlineSession = prefs.getBool('offline_logged_in') ?? false;
+      if (offlineSession) {
+        final patternEnabled = await SecurityService.instance.isPatternEnabled();
+        final hasPattern = await SecurityService.instance.hasPatternSet();
+        if (mounted) {
+          setState(() {
+            _isLoggedIn = true;
+            _needsPattern = patternEnabled && hasPattern;
+            _loading = false;
+          });
+        }
+        return;
+      }
+
       if (mounted) {
         setState(() {
-          _isLoggedIn = true;
-          _needsPattern = patternEnabled && hasPattern;
+          _isLoggedIn = false;
           _loading = false;
         });
       }
-      return;
-    }
-
-    final offlineSession = prefs.getBool('offline_logged_in') ?? false;
-    if (offlineSession) {
-      final patternEnabled = await SecurityService.instance.isPatternEnabled();
-      final hasPattern = await SecurityService.instance.hasPatternSet();
+    } catch (_) {
       if (mounted) {
         setState(() {
-          _isLoggedIn = true;
-          _needsPattern = patternEnabled && hasPattern;
+          _isLoggedIn = false;
           _loading = false;
         });
       }
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoggedIn = false;
-        _loading = false;
-      });
     }
   }
 

@@ -1,34 +1,24 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'app_config.dart';
 import 'constants/app_colors.dart';
-import 'firebase_options.dart';
 import 'logo_loader.dart';
 import 'providers/erp_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'screens/pattern_lock_screen.dart';
-import 'services/auth_service.dart';
 import 'services/locale_service.dart';
 import 'services/security_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 import 'services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    firebaseReady = true;
-  } catch (_) {
-    firebaseReady = false;
-  }
-
+  // Initialize Supabase (Google/Facebook login + cloud sync)
   try {
     await SupabaseService.initialize();
   } catch (_) {}
@@ -154,7 +144,6 @@ class _AppRootState extends State<AppRoot> {
       return;
     }
 
-    // Not logged in
     if (mounted) {
       setState(() {
         _isLoggedIn = false;

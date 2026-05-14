@@ -6,9 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import '../providers/erp_provider.dart';
 import '../services/backup_service.dart';
+import '../services/firebase_auth_service.dart';
 import '../services/locale_service.dart';
 import '../services/security_service.dart';
-import '../services/supabase_service.dart';
 import '../widgets/app_header.dart';
 import 'pattern_lock_screen.dart';
 
@@ -19,17 +19,14 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => SettingsScreenState();
 }
 
-class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_private_types_in_public_api
+class SettingsScreenState extends State<SettingsScreen> {
   bool _patternEnabled = false;
   bool _loadingBackupLocal = false;
   bool _loadingRestoreLocal = false;
-  bool _loadingSupabaseSync = false;
-  bool _loadingSupabaseRestore = false;
   bool _loadingLogout = false;
   String _offlineName = 'User';
   DateTime? _lastBackupDate;
   bool _backupNeeded = false;
-  DateTime? _lastSupabaseSync;
 
   @override
   void initState() {
@@ -43,16 +40,12 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
     final prefs = await SharedPreferences.getInstance();
     final lastBackup = await BackupService.instance.lastBackupDate();
     final needed = await BackupService.instance.isBackupNeeded();
-    final lastSyncMs = prefs.getInt('supabase_last_sync');
     if (mounted) {
       setState(() {
         _patternEnabled = enabled && hasPattern;
         _offlineName = prefs.getString('user_name') ?? 'User';
         _lastBackupDate = lastBackup;
         _backupNeeded = needed;
-        _lastSupabaseSync = lastSyncMs != null
-            ? DateTime.fromMillisecondsSinceEpoch(lastSyncMs)
-            : null;
       });
     }
   }
@@ -182,84 +175,18 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
     );
   }
 
-  // ── Supabase Sync ──────────────────────────────────────────────────────────
-  Future<void> _supabaseSync() async {
-    setState(() => _loadingSupabaseSync = true);
-    try {
-      final erp = context.read<ERPProvider>();
-      await SupabaseService.instance.pushAll(
-        parties: erp.parties.toList(),
-        items: erp.inventory.toList(),
-        transactions: erp.transactions.toList(),
-      );
-      final prefs = await SharedPreferences.getInstance();
-      final now = DateTime.now();
-      await prefs.setInt('supabase_last_sync', now.millisecondsSinceEpoch);
-      if (mounted) setState(() => _lastSupabaseSync = now);
-      _snack('Data Supabase par sync ho gaya!');
-    } catch (e) {
-      _snack('Sync nahi hua: ${e.toString().replaceAll("Exception:", "").trim()}', error: true);
-    } finally {
-      if (mounted) setState(() => _loadingSupabaseSync = false);
-    }
-  }
-
-  Future<void> _supabaseRestore() async {
-    final mode = await _showRestoreModeDialog();
-    if (mode == null) return;
-    setState(() => _loadingSupabaseRestore = true);
-    try {
-      final pulled = await SupabaseService.instance.pullAll();
-      final parties = pulled['parties'] as List;
-      final items = pulled['stock_items'] as List;
-      final txs = pulled['transactions'] as List;
-      if (parties.isEmpty && items.isEmpty && txs.isEmpty) {
-        _snack('Supabase par koi data nahi mila', error: true);
-        return;
-      }
-      final db = await _buildExportMap(parties, items, txs);
-      if (mode == RestoreMode.replace) {
-        await context.read<ERPProvider>().importFromSupabase(db);
-      } else {
-        await context.read<ERPProvider>().mergeFromSupabase(db);
-      }
-      if (mounted) await context.read<ERPProvider>().reload();
-      _snack(mode == RestoreMode.merge
-          ? 'Supabase data merge ho gaya!'
-          : 'Supabase data restore ho gaya!');
-    } catch (e) {
-      _snack('Restore nahi hua: ${e.toString().replaceAll("Exception:", "").trim()}', error: true);
-    } finally {
-      if (mounted) setState(() => _loadingSupabaseRestore = false);
-    }
-  }
-
-  Map<String, dynamic> _buildExportMap(List parties, List items, List txs) {
-    return {
-      'version': 1,
-      'parties': parties.map((p) => (p as dynamic).toMap()).toList(),
-      'stock_items': items.map((i) => (i as dynamic).toMap()).toList(),
-      'transactions': txs.map((t) => (t as dynamic).toMap()).toList(),
-    };
-  }
-
-  String _formatSyncDate(DateTime? d) {
-    if (d == null) return 'Kabhi nahi';
-    final now = DateTime.now();
-    final diff = now.difference(d);
-    if (diff.inMinutes < 1) return 'Abhi';
-    if (diff.inHours < 1) return '${diff.inMinutes} min pehle';
-    if (diff.inDays < 1) return '${diff.inHours} ghante pehle';
-    return '${diff.inDays} din pehle';
-  }
-
+  // ── Logout ─────────────────────────────────────────────────────────────────
   Future<void> _logout() async {
     final confirm = await _confirmDialog('Sign Out?', 'Aap login screen par wapas jayenge. Data safe rahega.');
     if (!confirm) return;
+    setState(() => _loadingLogout = true);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('offline_logged_in');
-    try { await SupabaseService.instance.signOut(); } catch (_) {}
-    if (mounted) widget.onLogout();
+    try { await FirebaseAuthService.instance.signOut(); } catch (_) {}
+    if (mounted) {
+      setState(() => _loadingLogout = false);
+      widget.onLogout();
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -316,8 +243,16 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
     final locale = context.watch<LocaleService>();
     final isUrdu = locale.isUrdu;
 
-    final initials = _offlineName.trim().isNotEmpty
-        ? _offlineName.trim().split(' ').map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').take(2).join()
+    final firebaseUser = FirebaseAuthService.instance.currentUser;
+    final isGoogleUser = firebaseUser != null;
+    final displayName = isGoogleUser
+        ? (firebaseUser.displayName ?? firebaseUser.email ?? 'User')
+        : _offlineName;
+    final displayEmail = isGoogleUser ? firebaseUser.email ?? '' : '';
+    final photoUrl = firebaseUser?.photoURL;
+
+    final initials = displayName.trim().isNotEmpty
+        ? displayName.trim().split(' ').map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').take(2).join()
         : 'U';
 
     return Scaffold(
@@ -344,7 +279,7 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
                   const Icon(Icons.warning_amber_rounded, color: Color(0xFFEA580C), size: 20),
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                    Text(locale.t3('Backup is required!', 'Backup lena zaruri hai!', 'بیک اپ لینا ضروری ہے!'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF9A3412))),
+                    Text(locale.t3('Backup is required!', 'Backup lena zaruri hai!', 'بیک اپ لینا ضروری ہے!'), style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF9A3412))),
                     Text(locale.t3('3+ days since last backup. Tap "Device Backup".', '3+ din se backup nahi liya. "Device pe Backup" tap karo.', '3+ دن سے بیک اپ نہیں لیا'), style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFC2410C), height: 1.4)),
                   ])),
                 ]),
@@ -387,28 +322,39 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border), boxShadow: [AppColors.cardShadow]),
               child: Row(children: [
-                Container(
-                  width: 54, height: 54,
-                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(15)),
-                  child: Center(child: Text(initials, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.accent))),
-                ),
+                if (photoUrl != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: Image.network(photoUrl, width: 54, height: 54, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _AvatarBox(initials: initials),
+                    ),
+                  )
+                else
+                  _AvatarBox(initials: initials),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_offlineName, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.foreground)),
-                  Text(locale.t3('Offline Mode — data only on this device', 'Offline Mode — data sirf is device par', 'آف لائن موڈ — ڈیٹا صرف اس ڈیوائس پر'), style: GoogleFonts.inter(fontWeight: FontWeight.w400, fontSize: 11.5, color: AppColors.mutedForeground, height: 1.4)),
+                  Text(displayName, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.foreground)),
+                  if (isGoogleUser && displayEmail.isNotEmpty)
+                    Text(displayEmail, style: GoogleFonts.inter(fontWeight: FontWeight.w400, fontSize: 11.5, color: AppColors.mutedForeground, height: 1.4))
+                  else
+                    Text(
+                      locale.t3('Offline Mode — data only on this device', 'Offline Mode — data sirf is device par', 'آف لائن موڈ — ڈیٹا صرف اس ڈیوائس پر'),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w400, fontSize: 11.5, color: AppColors.mutedForeground, height: 1.4),
+                    ),
                 ])),
-                GestureDetector(
-                  onTap: _editName,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(10)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                      const SizedBox(width: 4),
-                      Text(locale.t3('Edit', 'Edit', 'ترمیم'), style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.primary)),
-                    ]),
+                if (!isGoogleUser)
+                  GestureDetector(
+                    onTap: _editName,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(10)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(locale.t3('Edit', 'Edit', 'ترمیم'), style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.primary)),
+                      ]),
+                    ),
                   ),
-                ),
               ]),
             ),
             const SizedBox(height: 24),
@@ -460,41 +406,6 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
             _Tile(icon: Icons.download_outlined, title: locale.t3('Restore from Device', 'Device se Restore', 'ڈیوائس سے ریسٹور'), subtitle: locale.t3('Import data from JSON file', 'JSON file se data wapas lao', 'JSON فائل سے ڈیٹا واپس لائیں'), loading: _loadingRestoreLocal, onTap: _restoreLocal),
             const SizedBox(height: 24),
 
-            // ── Supabase Cloud Sync ──
-            _SectionLabel(locale.t3('Cloud Sync (Supabase)', 'Cloud Sync (Supabase)', 'کلاؤڈ سنک (Supabase)')),
-            Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFBFDBFE)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.cloud_done_outlined, size: 15, color: Color(0xFF1D4ED8)),
-                const SizedBox(width: 8),
-                Expanded(child: Text(
-                  '${locale.t3("Last sync", "Aakhri sync", "آخری سنک")}: ${_formatSyncDate(_lastSupabaseSync)}',
-                  style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1D4ED8), fontWeight: FontWeight.w500),
-                )),
-              ]),
-            ),
-            _Tile(
-              icon: Icons.cloud_upload_outlined,
-              title: locale.t3('Sync to Supabase', 'Supabase pe Sync Karo', 'Supabase پر سنک کریں'),
-              subtitle: locale.t3('Save all data to cloud', 'Sab data cloud par save karo', 'تمام ڈیٹا کلاؤڈ پر محفوظ کریں'),
-              loading: _loadingSupabaseSync,
-              onTap: _supabaseSync,
-            ),
-            _Tile(
-              icon: Icons.cloud_download_outlined,
-              title: locale.t3('Restore from Supabase', 'Supabase se Restore', 'Supabase سے ریسٹور'),
-              subtitle: locale.t3('Pull data from cloud', 'Cloud se data wapas lao', 'کلاؤڈ سے ڈیٹا واپس لائیں'),
-              loading: _loadingSupabaseRestore,
-              onTap: _supabaseRestore,
-            ),
-            const SizedBox(height: 24),
-
             // ── App ──
             _SectionLabel(locale.t3('App', 'App', 'ایپ')),
             _Tile(icon: Icons.info_outline, title: locale.t3('About', 'About', 'بارے میں'), subtitle: 'Shabbir ERP v1.0', onTap: () => _showAboutDialog(context)),
@@ -503,6 +414,19 @@ class SettingsScreenState extends State<SettingsScreen> {  // ignore: library_pr
           ],
         )),
       ]),
+    );
+  }
+}
+
+class _AvatarBox extends StatelessWidget {
+  final String initials;
+  const _AvatarBox({required this.initials});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 54, height: 54,
+      decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(15)),
+      child: Center(child: Text(initials, style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.accent))),
     );
   }
 }

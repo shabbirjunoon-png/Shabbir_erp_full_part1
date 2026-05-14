@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
+import '../services/firebase_auth_service.dart';
 import '../services/locale_service.dart';
-import '../services/supabase_service.dart';
 import '../widgets/app_header.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -17,35 +17,28 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _loadingGoogle = false;
-  bool _loadingFacebook = false;
   bool _loadingOffline = false;
   String? _error;
 
   Future<void> _loginWithGoogle() async {
     setState(() { _loadingGoogle = true; _error = null; });
     try {
-      await SupabaseService.instance.signInWithGoogle();
-    } catch (e) {
-      if (mounted) {
-        final locale = context.read<LocaleService>();
-        setState(() {
-          _error = locale.t3('Google login failed. Please try again.', 'Google login mein masla aaya. Dobara try karo.', 'گوگل لاگ ان ناکام۔ دوبارہ کوشش کریں۔');
-          _loadingGoogle = false;
-        });
+      final result = await FirebaseAuthService.instance.signInWithGoogle();
+      if (result != null && mounted) {
+        widget.onLogin();
+      } else if (mounted) {
+        setState(() { _loadingGoogle = false; });
       }
-    }
-  }
-
-  Future<void> _loginWithFacebook() async {
-    setState(() { _loadingFacebook = true; _error = null; });
-    try {
-      await SupabaseService.instance.signInWithFacebook();
     } catch (e) {
       if (mounted) {
         final locale = context.read<LocaleService>();
         setState(() {
-          _error = locale.t3('Facebook login failed. Please try again.', 'Facebook login mein masla aaya. Dobara try karo.', 'فیس بک لاگ ان ناکام۔ دوبارہ کوشش کریں۔');
-          _loadingFacebook = false;
+          _error = locale.t3(
+            'Google login failed. Please try again.',
+            'Google login mein masla aaya. Dobara try karo.',
+            'گوگل لاگ ان ناکام۔ دوبارہ کوشش کریں۔',
+          );
+          _loadingGoogle = false;
         });
       }
     }
@@ -61,7 +54,11 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         final locale = context.read<LocaleService>();
         setState(() {
-          _error = locale.t3('Something went wrong, please try again.', 'Kuch masla aaya, dobara try karo.', 'کچھ مسئلہ آیا، دوبارہ کوشش کریں۔');
+          _error = locale.t3(
+            'Something went wrong, please try again.',
+            'Kuch masla aaya, dobara try karo.',
+            'کچھ مسئلہ آیا، دوبارہ کوشش کریں۔',
+          );
           _loadingOffline = false;
         });
       }
@@ -70,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final anyLoading = _loadingGoogle || _loadingFacebook || _loadingOffline;
+    final anyLoading = _loadingGoogle || _loadingOffline;
     final locale = context.watch<LocaleService>();
 
     return Scaffold(
@@ -154,18 +151,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   fgColor: const Color(0xFF3C4043),
                   borderColor: const Color(0xFFDADCE0),
                 ),
-                const SizedBox(height: 14),
-
-                _SocialButton(
-                  loading: _loadingFacebook,
-                  disabled: anyLoading,
-                  onPressed: _loginWithFacebook,
-                  iconWidget: const Icon(Icons.facebook_rounded, color: Colors.white, size: 22),
-                  label: locale.t3('Sign in with Facebook', 'Facebook se Login Karo', 'فیس بک سے لاگ ان کریں'),
-                  bgColor: const Color(0xFF1877F2),
-                  fgColor: Colors.white,
-                  borderColor: const Color(0xFF1877F2),
-                ),
                 const SizedBox(height: 32),
 
                 Row(children: [
@@ -231,9 +216,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       Expanded(
                         child: Text(
                           locale.t3(
-                            'Sign in to sync your data across all devices. Without an account, data is saved only on this device.',
-                            'Account se login karo to aapka data har device pe sync hoga. Bina account ke sirf is device pe save hoga.',
-                            'اکاؤنٹ سے لاگ ان کریں تو ڈیٹا تمام ڈیوائسز پر sync ہوگا۔ بنا اکاؤنٹ کے صرف اس ڈیوائس پر۔',
+                            'Sign in with Google to keep your account secure. Without an account, data is saved only on this device.',
+                            'Google se login karo to account secure rahega. Bina account ke sirf is device pe save hoga.',
+                            'گوگل سے لاگ ان کریں تا کہ اکاؤنٹ محفوظ رہے۔ بنا اکاؤنٹ کے صرف اس ڈیوائس پر۔',
                           ),
                           style: GoogleFonts.inter(fontSize: 13, color: AppColors.mutedForeground, height: 1.6),
                         ),

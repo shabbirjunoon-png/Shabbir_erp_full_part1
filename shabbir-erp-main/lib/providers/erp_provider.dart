@@ -259,29 +259,4 @@ class ERPProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> importFromSupabase(Map<String, dynamic> data) async {
-    final parties = (data['parties'] as List).cast<Party>();
-    final items = (data['stock_items'] as List).cast<StockItem>();
-    final txs = (data['transactions'] as List).cast<Transaction>();
-    final exportMap = {
-      'version': 1,
-      'parties': parties.map((p) => p.toMap()).toList(),
-      'stock_items': items.map((i) => i.toMap()).toList(),
-      'transactions': txs.map((t) => t.toMap()).toList(),
-    };
-    await _db.importData(exportMap);
-  }
-
-  Future<void> mergeFromSupabase(Map<String, dynamic> data) async {
-    final parties = (data['parties'] as List).cast<Party>();
-    final items = (data['stock_items'] as List).cast<StockItem>();
-    final txs = (data['transactions'] as List).cast<Transaction>();
-    final exportMap = {
-      'version': 1,
-      'parties': parties.map((p) => p.toMap()).toList(),
-      'stock_items': items.map((i) => i.toMap()).toList(),
-      'transactions': txs.map((t) => t.toMap()).toList(),
-    };
-    await _db.mergeData(exportMap);
-  }
 }

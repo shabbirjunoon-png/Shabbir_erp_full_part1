@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,23 +7,22 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'constants/app_colors.dart';
+import 'firebase_options.dart';
 import 'logo_loader.dart';
 import 'providers/erp_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
 import 'screens/pattern_lock_screen.dart';
+import 'services/firebase_auth_service.dart';
 import 'services/locale_service.dart';
 import 'services/security_service.dart';
-import 'services/supabase_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Supabase (Google/Facebook login + cloud sync)
-  try {
-    await SupabaseService.initialize();
-  } catch (_) {}
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   await Future.wait([
     LocaleService.instance.load(),
@@ -96,40 +97,30 @@ class _AppRootState extends State<AppRoot> {
   void initState() {
     super.initState();
     _checkAuth();
-    // Listen for Supabase OAuth redirects completing
-    try {
-      SupabaseService.instance.authStateChanges.listen((data) {
-        if (!mounted) return;
-        final event = data.event;
-        if (event == AuthChangeEvent.signedIn) {
-          _onLogin();
-        } else if (event == AuthChangeEvent.signedOut) {
-          _onLogout();
-        }
-      });
-    } catch (_) {}
+    FirebaseAuthService.instance.authStateChanges.listen((user) {
+      if (!mounted) return;
+      if (user != null) {
+        _onLogin();
+      }
+    });
   }
 
   Future<void> _checkAuth() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Check Supabase social login session first
-    try {
-      if (SupabaseService.instance.isLoggedIn) {
-        final patternEnabled = await SecurityService.instance.isPatternEnabled();
-        final hasPattern = await SecurityService.instance.hasPatternSet();
-        if (mounted) {
-          setState(() {
-            _isLoggedIn = true;
-            _needsPattern = patternEnabled && hasPattern;
-            _loading = false;
-          });
-        }
-        return;
+    if (FirebaseAuthService.instance.isLoggedIn) {
+      final patternEnabled = await SecurityService.instance.isPatternEnabled();
+      final hasPattern = await SecurityService.instance.hasPatternSet();
+      if (mounted) {
+        setState(() {
+          _isLoggedIn = true;
+          _needsPattern = patternEnabled && hasPattern;
+          _loading = false;
+        });
       }
-    } catch (_) {}
+      return;
+    }
 
-    // Check offline / guest session
     final offlineSession = prefs.getBool('offline_logged_in') ?? false;
     if (offlineSession) {
       final patternEnabled = await SecurityService.instance.isPatternEnabled();
